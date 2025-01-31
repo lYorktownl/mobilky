@@ -32,7 +32,13 @@ class AuthManager extends StatefulWidget {
 class _AuthManagerState extends State<AuthManager> {
   bool _isAuthenticated = false;
   User? _currentUser;
-  final List<User> _users = [];
+  List<User> _users = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
 
   Future<void> _loadUsers() async {
     final prefs = await SharedPreferences.getInstance();
@@ -40,7 +46,7 @@ class _AuthManagerState extends State<AuthManager> {
     if (usersJson != null) {
       final List<dynamic> usersList = jsonDecode(usersJson);
       setState(() {
-        _users.addAll(usersList.map((json) => User.fromJson(json)).toList());
+        _users = usersList.map((json) => User.fromJson(json)).toList();
       });
     }
   }
@@ -52,6 +58,7 @@ class _AuthManagerState extends State<AuthManager> {
   }
 
   Future<bool> _handleLogin(String login, String password) async {
+    await _loadUsers();
     final user = _users.firstWhere(
           (user) => user.login == login && user.password == password,
       orElse: () => User(name: '', login: '', password: ''),
@@ -62,9 +69,9 @@ class _AuthManagerState extends State<AuthManager> {
         _isAuthenticated = true;
         _currentUser = user;
       });
-      return true; // Успешный вход
+      return true;
     } else {
-      return false; // Неудачный вход
+      return false;
     }
   }
 
@@ -88,11 +95,21 @@ class _AuthManagerState extends State<AuthManager> {
     } else {
       setState(() {
         _users.add(newUser);
-        _saveUsers();
       });
+      _saveUsers();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('User registered successfully!')),
       );
+    }
+  }
+
+  void _updateUser(User updatedUser) {
+    final index = _users.indexWhere((user) => user.login == updatedUser.login);
+    if (index != -1) {
+      setState(() {
+        _users[index] = updatedUser;
+      });
+      _saveUsers();
     }
   }
 
@@ -104,16 +121,12 @@ class _AuthManagerState extends State<AuthManager> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _loadUsers();
-  }
-
-  @override
   Widget build(BuildContext context) {
     if (_isAuthenticated) {
       return HomePage(
         currentUser: _currentUser,
+        users: _users,
+        onUpdateUser: _updateUser,
         onLogout: _logout,
       );
     } else {
@@ -133,10 +146,14 @@ class _AuthManagerState extends State<AuthManager> {
 
 class HomePage extends StatefulWidget {
   final User? currentUser;
+  final List<User> users;
+  final Function(User) onUpdateUser;
   final VoidCallback onLogout;
 
   const HomePage({
     required this.currentUser,
+    required this.users,
+    required this.onUpdateUser,
     required this.onLogout,
     Key? key,
   }) : super(key: key);
@@ -147,32 +164,28 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
-
-  late List<User> _users;
   late UsersPage _usersPage;
   late TasksPage _tasksPage;
 
   @override
   void initState() {
     super.initState();
-    _users = [];
-    _usersPage = UsersPage(users: _users);
-    _tasksPage = TasksPage(users: _users);
+    _updatePages();
   }
 
-  void _refreshPages() {
+  void _updatePages() {
     setState(() {
-      _usersPage = UsersPage(users: _users);
-      _tasksPage = TasksPage(users: _users);
+      _usersPage = UsersPage(
+        users: widget.users,
+        onUpdateUser: widget.onUpdateUser,
+      );
+      _tasksPage = TasksPage(users: widget.users);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> _pages = [
-      _usersPage,
-      _tasksPage,
-    ];
+    final List<Widget> _pages = [_usersPage, _tasksPage];
 
     return Scaffold(
       appBar: AppBar(
@@ -180,7 +193,7 @@ class _HomePageState extends State<HomePage> {
         actions: [
           IconButton(
             icon: Icon(Icons.refresh),
-            onPressed: _refreshPages,
+            onPressed: _updatePages,
           ),
           IconButton(
             icon: Icon(Icons.logout),

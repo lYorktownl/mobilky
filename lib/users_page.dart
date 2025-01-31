@@ -4,8 +4,13 @@ import 'dart:convert';
 
 class UsersPage extends StatefulWidget {
   final List<User> users;
+  final Function(User) onUpdateUser;
 
-  UsersPage({Key? key, this.users = const []}) : super(key: key);
+  const UsersPage({
+    required this.users,
+    required this.onUpdateUser,
+    Key? key,
+  }) : super(key: key);
 
   @override
   _UsersPageState createState() => _UsersPageState();
@@ -28,7 +33,7 @@ class _UsersPageState extends State<UsersPage> {
       if (usersString != null) {
         final List<dynamic> usersJson = jsonDecode(usersString);
         setState(() {
-          _users.addAll(usersJson.map((json) => User.fromJson(json)).toList());
+          _users = usersJson.map((json) => User.fromJson(json)).toList(); // Перезаписываем список
         });
       }
     } catch (e) {
@@ -98,13 +103,11 @@ class _UsersPageState extends State<UsersPage> {
               ));
               return;
             }
+            final newUser = User(name: name, login: login, password: password);
             setState(() {
-              _users.add(User(
-                name: name,
-                login: login,
-                password: password,
-              ));
+              _users.add(newUser);
             });
+            widget.onUpdateUser(newUser); // Передаем в HomePage
             _saveUsers();
           }
         },
@@ -118,12 +121,13 @@ class _UsersPageState extends State<UsersPage> {
       builder: (context) => EditUserDialog(
         user: user,
         onEditUser: (name, login, password) {
+          final updatedUser = User(
+            name: name,
+            login: login,
+            password: password,
+          );
           setState(() {
-            _users[index] = User(
-              name: name,
-              login: login,
-              password: password,
-            );
+            widget.onUpdateUser(updatedUser); // Передаем управление изменением в HomePage
           });
           _saveUsers();
         },
